@@ -458,6 +458,7 @@ dependencies = [
 [[package]]
 name = "druid-enums"
 version = "0.1.0"
+source = "git+https://github.com/finnerale/druid-enums?rev=11a4660#11a4660c9b491e5d34857010c82c795f1a78c0a7"
 dependencies = [
  "heck",
  "log",
