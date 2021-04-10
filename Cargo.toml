@@ -9,5 +9,8 @@ edition = "2018"
 [dependencies]
 sqlx = { version = "0.5", features = [ "runtime-tokio-rustls", "sqlite" ] }
 druid = { git = "https://github.com/linebender/druid", rev = "2c5d73c" }
+druid-enums = { path = "../../contrib/druid-enums" }
 tokio = "1.4.0"
 crossbeam = "0.8.0"
+log = "0.4.14"
+anyhow = "1.0.40"

@@ -456,6 +456,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "druid-enums"
+version = "0.1.0"
+dependencies = [
+ "heck",
+ "log",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "druid-shell"
 version = "0.7.0"
 source = "git+https://github.com/linebender/druid?rev=2c5d73c#2c5d73c8426f90d2a1ede9fdd3b5cb7bee57f108"
@@ -1702,8 +1713,11 @@ dependencies = [
 name = "sqlite_ui"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "crossbeam",
  "druid",
+ "druid-enums",
+ "log",
  "sqlx",
  "tokio",
 ]
