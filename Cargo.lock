@@ -1719,6 +1719,8 @@ dependencies = [
  "druid",
  "druid-enums",
  "log",
+ "once_cell",
+ "regex",
  "sqlx",
  "tokio",
 ]

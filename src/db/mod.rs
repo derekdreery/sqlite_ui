@@ -1,5 +1,7 @@
 use anyhow::{format_err, Error};
 use druid::{ExtEventSink, Selector, Target};
+use once_cell::sync::Lazy;
+use regex::Regex;
 use sqlx::{prelude::*, SqlitePool};
 use std::{
     any::Any,
@@ -85,10 +87,12 @@ impl Worker {
 
     async fn query(&mut self, sql: String) {
         if let State::Open { db } = &self.state {
-            match db.execute(sql.as_str()).await {
-                Ok(_) => {}
+            let results = db.fetch(sql.as_str());
+            let first_result = results.next().await;
+            let stream = match db.fetch(sql.as_str()).await {
+                Ok(stream) => stream,
                 Err(e) => self.send(QUERY_ERROR, Error::from(e)),
-            }
+            };
         } else {
             unreachable!()
         }
@@ -122,21 +126,34 @@ pub fn start(sink: ExtEventSink) -> tokio::sync::mpsc::UnboundedSender<MsgIn> {
     tx
 }
 
+static DRIVE_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\w:").unwrap());
+
 fn build_connection_str(path: Option<impl AsRef<Path>>) -> Result<String, Error> {
-    match path {
+    let mut path = match path {
         Some(path) => {
             let path = path.as_ref();
-            let path = match path.to_str() {
-                Some(path) => path,
+            match path.to_str() {
+                Some(path) => path.to_owned(),
                 None => {
                     return Err(format_err!(
                         "path {} is not utf_8, which is required for sqlite connection",
                         path.display()
                     ))
                 }
-            };
-            Ok(format!("sqlite:file://{}", path))
+            }
         }
-        None => Ok(format!("sqlite:file::memory:?cache=shared")),
+        None => return Ok(format!("sqlite:file::memory:?cache=shared")),
+    };
+    // Sanitising guide from https://sqlite.org/uri.html
+    path = path.replace('?', "%3f");
+    path = path.replace('#', "%23");
+    path = path.replace('\\', "/");
+    while path.contains("//") {
+        path = path.replace("//", "/");
     }
+    // windows needs an extra prepended '/' before drive letter.
+    if DRIVE_REGEX.is_match(&path) {
+        path = format!("/{}", path);
+    }
+    Ok(format!("sqlite:file:{}", path))
 }

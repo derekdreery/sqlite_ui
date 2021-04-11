@@ -1,5 +1,5 @@
 use druid::{
-    widget::{prelude::*, Button, Flex, Label, LineBreaking, RawLabel, TextBox},
+    widget::{prelude::*, Button, Either, Flex, Label, LineBreaking, RawLabel, TextBox},
     AppDelegate, AppLauncher, ArcStr, Data, FileDialogOptions, Handled, Lens, LocalizedString,
     Menu, MenuItem, UnitPoint, WidgetExt, WindowDesc, WindowId,
 };
@@ -53,7 +53,7 @@ impl AppDelegate<App> for Delegate {
     fn command(
         &mut self,
         ctx: &mut druid::DelegateCtx,
-        _target: druid::Target,
+        target: druid::Target,
         cmd: &druid::Command,
         data: &mut App,
         _env: &Env,
@@ -83,9 +83,11 @@ impl AppDelegate<App> for Delegate {
             Handled::Yes
         } else if let Some(sql) = cmd.get(commands::START_QUERY) {
             data.start_query();
-            self.send(db::MsgIn::RunQuery { sql: sql.clone() });
+            self.send(db::MsgIn::RunQuery {
+                sql: (**sql).clone(),
+            });
             Handled::Yes
-        } else if let Some(e) = cmd.get(commands::SHOW_LOG) {
+        } else if cmd.get(commands::SHOW_LOG).is_some() {
             if self.logs_window.is_none() {
                 let desc = WindowDesc::new(log_window())
                     .title("Database Logs")
@@ -95,9 +97,14 @@ impl AppDelegate<App> for Delegate {
                 self.logs_window = Some(id);
             }
             Handled::Yes
-        } else if let Some(window_id) = cmd.get(druid::commands::CLOSE_WINDOW) {
-            if matches!(self.logs_window, Some(window_id)) {
-                self.logs_window = None;
+        } else if cmd.get(druid::commands::CLOSE_WINDOW).is_some() {
+            if let druid::Target::Window(window_id) = target {
+                match &self.logs_window {
+                    Some(id) if *id == window_id => {
+                        self.logs_window = None;
+                    }
+                    _ => (),
+                }
             }
             Handled::No
         } else {
@@ -117,9 +124,11 @@ fn app_menu(_id: Option<WindowId>, _data: &App, _env: &Env) -> Menu<App> {
                     ),
                 )
                 .entry(
-                    MenuItem::new("Save As").command(
-                        druid::commands::SHOW_OPEN_PANEL.with(FileDialogOptions::default()),
-                    ),
+                    MenuItem::new("Save As")
+                        .command(
+                            druid::commands::SHOW_OPEN_PANEL.with(FileDialogOptions::default()),
+                        )
+                        .enabled_if(|data: &App, _| matches!(data.state, State::Open(_))),
                 )
                 .entry(
                     MenuItem::new("Close")
@@ -146,7 +155,23 @@ fn log_window() -> impl Widget<App> {
 }
 
 fn db_open() -> impl Widget<StateOpen> {
-    let buttons = Flex::row().with_child(Button::new("Run query")).padding(4.);
+    let buttons = Either::new(
+        |data: &StateOpen, _| data.query_running,
+        Flex::row()
+            .with_child(
+                Button::new("Cancel query").on_click(|ctx, data: &mut StateOpen, _| {
+                    ctx.submit_command(commands::CANCEL_QUERY);
+                }),
+            )
+            .padding(4.),
+        Flex::row()
+            .with_child(
+                Button::new("Run query").on_click(|ctx, data: &mut StateOpen, _| {
+                    ctx.submit_command(commands::START_QUERY.with(data.sql.clone()));
+                }),
+            )
+            .padding(4.),
+    );
 
     let textbox = TextBox::multiline()
         .with_text_size(15.0)
